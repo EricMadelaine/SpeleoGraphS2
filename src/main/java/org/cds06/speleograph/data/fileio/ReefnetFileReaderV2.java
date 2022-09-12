@@ -46,20 +46,12 @@ import java.util.Calendar;
 import java.util.Date;
 
 /**
- * Open a CSV Reefnet file and transform it to a CSV for SpeleoGraph.
+ * Open a CSV Reefnet V2 file and transform it to a CSV for SpeleoGraph.
  * <div>
- * An Reefnet is a comma-separated CSV file with this column :
+ * An Reefnet V2 is a comma-separated CSV file with this column :
  * <ol>
  * <li>Index (not used here)</li>
- * <li>Device ID</li>
- * <li>ReefNet Series ID</li>
- * <li>Year</li>
- * <li>Month</li>
- * <li>Day</li>
- * <li>Hour</li>
- * <li>Minute</li>
- * <li>Second</li>
- * <li>Offset</li>
+ * <li>Day/Month/Year Hour:Minute</li>
  * <li>Pressure</li>
  * <li>Temperature (Integer part)</li>
  * <li>Temperature (Decimal part)</li>
@@ -67,16 +59,16 @@ import java.util.Date;
  * This is the format when you export from Sensus Manager and excepted for this converter.
  * </div>
  *
- * @author Philippe VIENNE
+ * @author Lea Corp dit Genti
  * @since 1.0
  */
-public class ReefnetFileReader implements DataFileReader {
+public class ReefnetFileReaderV2 implements DataFileReader {
 
     /**
      * Logger for errors and information.
      */
     @NonNls
-    private static final Logger log = LoggerFactory.getLogger(ReefnetFileReader.class);
+    private static final Logger log = LoggerFactory.getLogger(ReefnetFileReaderV2.class);
 
     /**
      * When test if a CSV file is a ReefNet File, Maximal not ReefNet lines allowed before.
@@ -87,25 +79,24 @@ public class ReefnetFileReader implements DataFileReader {
      * Detect if a file is a ReefNet CSV format.
      * <p>Open the file as a csv, read the first line, we check that :</p>
      * <ul>
-     * <li>has got 12 or 13 elements</li>
-     * <li>the second column contains a ReefNet Device ID starting with "RU-"</li>
+     * <li>has got 4 or 5 elements</li>
      * </ul>
      * @param file File to test
      * @return true if it's a ReefNet file
      */
-    public static boolean isReefnetFile(File file) {
+    public static boolean isReefnetFileV2(File file) {
         try {
             CSVReader csvReader = new CSVReader(new FileReader(file), ',');
             String[] line;
             for (int i = 0; i < MAX_ALLOWED_HEADERS && (line = csvReader.readNext()) != null; i++) {
                 int size = line.length;
-                if (11 < size && size < 14 && line[1].startsWith("SU-")) // NON-NLS
+                if (3 < size && size < 6 ) // NON-NLS
                     return true;
                 if (size > 1)
                     return false;
             }
         } catch (IOException e) {
-            log.error("Can not test if it's a ReefFile, continuing as if it's not one", e); // NON-NLS
+            log.error("Can not test if it's a ReefFile V2, continuing as if it's not one", e); // NON-NLS
         }
         return false;
     }
@@ -114,7 +105,7 @@ public class ReefnetFileReader implements DataFileReader {
      * Date format used to parse date in ReefNet entries.
      * This variable must not be altered without editing {@link #readDate(String[], java.util.Calendar)}
      */
-    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("y:M:d:H:m:s");
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("y-M-d H:m:s");
 
     /**
      * Read a ReefNet File.
@@ -153,7 +144,7 @@ public class ReefnetFileReader implements DataFileReader {
         String seriesId = "";
         final Calendar calendar = Calendar.getInstance();
         while (line != null) {
-            if (11 < line.length && line.length < 14) {
+            if (3 < line.length && line.length < 6) {
                 seriesId = readReefnetEntry(line, pressureSeries, temperatureSeries, seriesId, calendar);
             } else {
                 log.info("Not a Reefnet line: " + StringUtils.join(line, ',')); //NON-NLS
@@ -184,17 +175,14 @@ public class ReefnetFileReader implements DataFileReader {
             String[] line, Series pressureSeries, Series temperatureSeries, String seriesId, Calendar calendar)
             throws FileReadingError {
         double temperature = 0;
-        if (line.length == 12) {
-            temperature = Double.parseDouble(line[11]) - 273.15;
-        } else if (line.length == 13) {
-            temperature = Double.parseDouble(line[11] + '.' + line[12]) - 273.15;
+        if (line.length == 4) {
+            temperature = Double.parseDouble(line[3]) - 273.15;
+        } else if (line.length == 5) {
+            temperature = Double.parseDouble(line[3] + '.' + line[4]) - 273.15;
         }
-        int pressure = Integer.parseInt(line[10]);
-        if (!seriesId.equals(line[2])) {
-            seriesId = readDate(line, calendar);
-        }
+        int pressure = Integer.parseInt(line[2]);
+        seriesId = readDate(line, calendar);
         Calendar clone = (Calendar) calendar.clone();
-        clone.add(Calendar.SECOND, Integer.parseInt(line[9]));
         temperatureSeries.add(new Item(temperatureSeries, clone.getTime(), temperature));
         pressureSeries.add(new Item(pressureSeries, clone.getTime(), pressure));
         return seriesId;
@@ -212,13 +200,12 @@ public class ReefnetFileReader implements DataFileReader {
      */
     private String readDate(String[] line, Calendar calendar) throws FileReadingError {
         String seriesId;
-        seriesId = line[2];
-        log.debug(seriesId);
-        log.debug(StringUtils.join(Arrays.copyOfRange(line, 3, 9), ':'));
+        seriesId = line[0];
         Date d;
+        //log.debug(seriesId);
         try {
-            d = dateFormat.parse(StringUtils.join(Arrays.copyOfRange(line, 3, 9), ':'));
-            log.debug("date :" +d);
+            d = dateFormat.parse(line[1]);
+            //log.debug("date :" +d);
         } catch (ParseException e) {
             log.error("Can not parse a date", e);
             throw new FileReadingError(
@@ -238,7 +225,7 @@ public class ReefnetFileReader implements DataFileReader {
      */
     @Override
     public String getName() {
-        return "ReefNet File"; // NON-NLS
+        return "ReefNet File V2"; // NON-NLS
     }
 
     /**
@@ -248,7 +235,7 @@ public class ReefnetFileReader implements DataFileReader {
      */
     @Override
     public String getButtonText() {
-        return I18nSupport.translate("actions.openReefNetFile");
+        return I18nSupport.translate("actions.openReefNetFileV2");
     }
 
     /**
@@ -277,7 +264,7 @@ public class ReefnetFileReader implements DataFileReader {
                          */
                         @Override
                         public boolean accept(File dir, String name) {
-                            return isReefnetFile(FileUtils.getFile(dir, name));
+                            return isReefnetFileV2(FileUtils.getFile(dir, name));
                         }
                     }));
 }

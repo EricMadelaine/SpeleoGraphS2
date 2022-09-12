@@ -46,6 +46,7 @@ public class Type extends DatasetGroup implements Comparable<Type>, Cloneable {
 
     public static final Type UNKNOWN = Type.getType("Data", null);
     public static final Type PRESSURE = Type.getType(I18nSupport.translate("actions.setType.pressure"), "hPa");
+    public static final Type CONDUCTIVITY = Type.getType(I18nSupport.translate("actions.setType.conductivity"), "ms/cm");
     public static final Type TEMPERATURE = Type.getType(I18nSupport.translate("actions.setType.temperature"), "°C");
     public static final Type TEMPERATURE_MIN_MAX = Type.getType(I18nSupport.translate("actions.setType.temperatureMinMax"), "°C");
     public static final Type WATER = Type.getType(I18nSupport.translate("actions.setType.water"), "mm");

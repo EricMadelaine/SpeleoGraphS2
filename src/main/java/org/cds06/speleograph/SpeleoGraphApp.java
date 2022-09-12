@@ -49,7 +49,7 @@ import java.util.prefs.Preferences;
  * @author Philippe VIENNE
  */
 public class SpeleoGraphApp extends JFrame {
-    public static final String APP_VERSION = "2.0";
+    public static final String APP_VERSION = "S2-V0.9";
     public static final String AUTHORS = "Philippe Vienne, Gabriel Augendre";
     public static final String CONTACT = "speleograph@free.fr";
     public static final String APP_NAME = "SpeleoGraph"; // NON-NLS
@@ -74,12 +74,18 @@ public class SpeleoGraphApp extends JFrame {
      * Main panel for the application.
      */
     private final JPanel panel;
+    /*
+    MAin panel for the resaerch
+    */
+    private final JPanel panelV2;
 
     /**
      * The splitPane to divide space between Graph and Series' List.
      */
     private final JSplitPane splitPane;
-
+    
+    private final JTabbedPane onglets;
+    
     /**
      * The class who manages menus for Series.
      */
@@ -96,7 +102,7 @@ public class SpeleoGraphApp extends JFrame {
     }
 
     public SpeleoGraphApp() {
-        super(APP_NAME + " " + APP_VERSION); // NON-NLS
+        super(APP_NAME + APP_VERSION); // NON-NLS
 
         try {
             setIconImage(new ImageIcon(SpeleoGraphApp.class.getResource("SpeleoGraph_icon.png")).getImage()); //NON-NLS
@@ -105,7 +111,13 @@ public class SpeleoGraphApp extends JFrame {
         }
 
         // Initialize Graphic elements
+        
         panel = new JPanel(new BorderLayout(2, 2));
+        panelV2 = new JPanel(new BorderLayout(2, 2));
+        onglets = new JTabbedPane();
+        onglets.setBounds(40,20,300,300);
+        onglets.add("KarstlinkS2",panelV2);
+        onglets.add("Spéléograph",panel);
         SpeleoSeriesListModel listModel = new SpeleoSeriesListModel();
         list = new CheckBoxList(listModel);
         JScrollPane scrollPane = new JScrollPane(list);
@@ -122,9 +134,13 @@ public class SpeleoGraphApp extends JFrame {
         // Configure and add the splitPane
         splitPane.setResizeWeight(1.0);
         panel.add(splitPane, BorderLayout.CENTER);
-
+        
+        //construction of the form
+        FormPanel formPanel = new FormPanel(this, "");
+        panelV2.add(formPanel);
+        
         // Configure the frame
-        setContentPane(panel);
+        //setContentPane(panel);
         seriesMenu = new SeriesMenu(this);
         final JMenuBar menus = createMenus();
         setJMenuBar(menus);
@@ -136,6 +152,8 @@ public class SpeleoGraphApp extends JFrame {
         setLocation(50, 50);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
         setDefaultCloseOperation(WindowConstants.EXIT_ON_CLOSE);
+        add(onglets);
+        
     }
 
     public JSplitPane getSplitPane() {
@@ -154,8 +172,10 @@ public class SpeleoGraphApp extends JFrame {
         fileMenu.add(new SaveAction(panel));
         JMenu importMenu = new JMenu(I18nSupport.translate("menus.import"));
         importMenu.add(new OpenAction(panel, ReefnetFileReader.class));
+        importMenu.add(new OpenAction(panel, ReefnetFileReaderV2.class));
         importMenu.add(new OpenAction(panel, HoboFileReader.class));
         importMenu.add(new OpenAction(panel, WundergroundFileReader.class));
+        importMenu.add(new OpenAction(panel, CTDFileReader.class));
         importMenu.addSeparator();
         importMenu.add(new ImportAction(panel));
         fileMenu.add(importMenu);
@@ -235,7 +255,7 @@ public class SpeleoGraphApp extends JFrame {
      * @param args Arguments sent to the JVM (not used)
      */
     @NonNls
-    public static void main(String... args) {
+    public static void main(String... args) throws IOException {
 
         if (isMac()) {
             System.setProperty("apple.laf.useScreenMenuBar", "true"); //On déporte la barre de menus
@@ -274,8 +294,8 @@ public class SpeleoGraphApp extends JFrame {
                     System.out.println("Leave default Java LookAndFeel"); // NON-NLS
                 }
             }
-
         }
+        
 
         instance = new SpeleoGraphApp();
 

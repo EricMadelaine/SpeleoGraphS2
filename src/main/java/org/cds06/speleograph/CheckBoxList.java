@@ -32,6 +32,11 @@ import javax.swing.event.ListDataListener;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import javax.swing.plaf.basic.BasicComboBoxEditor;
+import javax.swing.plaf.basic.BasicComboBoxUI;
+import javax.swing.plaf.basic.BasicComboPopup;
+import javax.swing.plaf.basic.BasicScrollBarUI;
+import javax.swing.plaf.basic.ComboPopup;
 
 /**
  * This file is created by PhilippeGeek.
@@ -104,4 +109,6 @@ public class CheckBoxList extends JList<Series> {
             return box;
         }
     }
+    
+    
 }

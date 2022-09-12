@@ -46,37 +46,28 @@ import java.util.Calendar;
 import java.util.Date;
 
 /**
- * Open a CSV Reefnet file and transform it to a CSV for SpeleoGraph.
+ * Open a CSV CTD file and transform it to a CSV for SpeleoGraph.
  * <div>
- * An Reefnet is a comma-separated CSV file with this column :
+ * An CTD is a comma-separated CSV file with this column :
  * <ol>
- * <li>Index (not used here)</li>
- * <li>Device ID</li>
- * <li>ReefNet Series ID</li>
- * <li>Year</li>
- * <li>Month</li>
- * <li>Day</li>
- * <li>Hour</li>
- * <li>Minute</li>
- * <li>Second</li>
- * <li>Offset</li>
+ * <li>DATE day/month/year  hour:minute</li>
  * <li>Pressure</li>
- * <li>Temperature (Integer part)</li>
- * <li>Temperature (Decimal part)</li>
+ * <li>Temperature</li>
+ * <li>Conductivite</li>
  * </ol>
  * This is the format when you export from Sensus Manager and excepted for this converter.
  * </div>
  *
- * @author Philippe VIENNE
+ * @author Lea Corp dit Genti
  * @since 1.0
  */
-public class ReefnetFileReader implements DataFileReader {
+public class CTDFileReader implements DataFileReader {
 
     /**
      * Logger for errors and information.
      */
     @NonNls
-    private static final Logger log = LoggerFactory.getLogger(ReefnetFileReader.class);
+    private static final Logger log = LoggerFactory.getLogger(CTDFileReader.class);
 
     /**
      * When test if a CSV file is a ReefNet File, Maximal not ReefNet lines allowed before.
@@ -87,37 +78,41 @@ public class ReefnetFileReader implements DataFileReader {
      * Detect if a file is a ReefNet CSV format.
      * <p>Open the file as a csv, read the first line, we check that :</p>
      * <ul>
-     * <li>has got 12 or 13 elements</li>
-     * <li>the second column contains a ReefNet Device ID starting with "RU-"</li>
+     * <li>has got 4 elements</li>
      * </ul>
      * @param file File to test
      * @return true if it's a ReefNet file
      */
-    public static boolean isReefnetFile(File file) {
+    public static boolean isCTDFile(File file) {
         try {
-            CSVReader csvReader = new CSVReader(new FileReader(file), ',');
+            CSVReader csvReader = new CSVReader(new FileReader(file), ';');
             String[] line;
+            int index =0;
+            while (index<2) {
+                    csvReader.readNext();
+                    index++;
+            }
             for (int i = 0; i < MAX_ALLOWED_HEADERS && (line = csvReader.readNext()) != null; i++) {
                 int size = line.length;
-                if (11 < size && size < 14 && line[1].startsWith("SU-")) // NON-NLS
+                if (3 < size && size < 5 ) // NON-NLS
                     return true;
                 if (size > 1)
                     return false;
             }
         } catch (IOException e) {
-            log.error("Can not test if it's a ReefFile, continuing as if it's not one", e); // NON-NLS
+            log.error("Can not test if it's a CTD file, continuing as if it's not one", e); // NON-NLS
         }
         return false;
     }
 
     /**
-     * Date format used to parse date in ReefNet entries.
+     * Date format used to parse date in cdt entries.
      * This variable must not be altered without editing {@link #readDate(String[], java.util.Calendar)}
      */
-    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("y:M:d:H:m:s");
+    private static final SimpleDateFormat dateFormat = new SimpleDateFormat("d/M/y H:m");
 
     /**
-     * Read a ReefNet File.
+     * Read a cdt File.
      *
      * @param file The file to read.
      * @throws FileReadingError When an error occurs when read the file.
@@ -137,7 +132,7 @@ public class ReefnetFileReader implements DataFileReader {
                     e
             );
         }
-        CSVReader reader = new CSVReader(fileReader, ',');
+        CSVReader reader = new CSVReader(fileReader, ';');
         String[] line;
         try {
             line = reader.readNext();
@@ -149,14 +144,21 @@ public class ReefnetFileReader implements DataFileReader {
             );
         }
         Series pressureSeries = new Series(file, Type.PRESSURE),
-                temperatureSeries = new Series(file, Type.TEMPERATURE);
+                temperatureSeries = new Series(file, Type.TEMPERATURE),
+                conductivitySeries = new Series(file, Type.CONDUCTIVITY);
         String seriesId = "";
         final Calendar calendar = Calendar.getInstance();
+        try {
+                line = reader.readNext();
+            } catch (IOException e) {
+                line = null;
+            }
+        
         while (line != null) {
-            if (11 < line.length && line.length < 14) {
-                seriesId = readReefnetEntry(line, pressureSeries, temperatureSeries, seriesId, calendar);
+            if (3 < line.length && line.length < 5 && !line[0].contains("Date") && !line[1].equals("")) {
+                seriesId = readCTDEntry(line, pressureSeries, temperatureSeries,conductivitySeries, seriesId, calendar);
             } else {
-                log.info("Not a Reefnet line: " + StringUtils.join(line, ',')); //NON-NLS
+                log.info("Not a ctd line: " + StringUtils.join(line, ';')); //NON-NLS
             }
             try {
                 line = reader.readNext();
@@ -164,13 +166,13 @@ public class ReefnetFileReader implements DataFileReader {
                 line = null;
             }
         }
-        log.info("Reefnet File (" + file.getName() + ") has been read."); //NON-NLS
+        log.info("CTD File (" + file.getName() + ") has been read."); //NON-NLS
     }
 
     /**
      * Read an entry from a Reefnet File.
      *
-     * @param line              The line extracted from the file (length must be 12 or 13)
+     * @param line              The line extracted from the file (length must be 4)
      * @param pressureSeries    The series where add pressure data
      * @param temperatureSeries The series where add temperature data
      * @param seriesId          The ReefNet's Series ID
@@ -180,23 +182,38 @@ public class ReefnetFileReader implements DataFileReader {
      * @see #readDate(String[], java.util.Calendar)
      * @see #readFile(java.io.File)
      */
-    private String readReefnetEntry(
-            String[] line, Series pressureSeries, Series temperatureSeries, String seriesId, Calendar calendar)
+    private String readCTDEntry(
+            String[] line, Series pressureSeries, Series temperatureSeries,Series conductivitySeries, String seriesId, Calendar calendar)
             throws FileReadingError {
-        double temperature = 0;
-        if (line.length == 12) {
-            temperature = Double.parseDouble(line[11]) - 273.15;
-        } else if (line.length == 13) {
-            temperature = Double.parseDouble(line[11] + '.' + line[12]) - 273.15;
+        double temperature=0;
+        String temperature_entier = line[2].split(",")[0];
+        if(line[0].contains(",")){
+            String temperature_decimal = line[2].split(",")[1];
+            temperature=Double.parseDouble(temperature_entier + '.' + temperature_decimal);
+        }else{
+            temperature=Double.parseDouble(temperature_entier );
         }
-        int pressure = Integer.parseInt(line[10]);
-        if (!seriesId.equals(line[2])) {
-            seriesId = readDate(line, calendar);
+        String pressure_entier = line[1].split(",")[0];
+        int pressure=0;
+        if(line[1].contains(",")){
+            String pressure_decimal = line[1].split(",")[1];
+            pressure = (int) Math.round(Double.parseDouble(pressure_entier + '.' + pressure_decimal)/1.01972);
+        }else{
+            pressure = (int) Math.round(Double.parseDouble(pressure_entier)/1.01972);
         }
+        double conductivity =0 ;
+        String conductivity_entier = line[3].split(",")[0];
+        if(line[3].contains(",")){
+            String conductivity_decimal = line[3].split(",")[1];
+            conductivity = Double.parseDouble(conductivity_entier + '.' + conductivity_decimal);
+        }else{
+            conductivity = Double.parseDouble(conductivity_entier);
+        }
+        seriesId = readDate(line, calendar);
         Calendar clone = (Calendar) calendar.clone();
-        clone.add(Calendar.SECOND, Integer.parseInt(line[9]));
         temperatureSeries.add(new Item(temperatureSeries, clone.getTime(), temperature));
         pressureSeries.add(new Item(pressureSeries, clone.getTime(), pressure));
+        conductivitySeries.add(new Item(pressureSeries, clone.getTime(), conductivity));
         return seriesId;
     }
 
@@ -212,13 +229,12 @@ public class ReefnetFileReader implements DataFileReader {
      */
     private String readDate(String[] line, Calendar calendar) throws FileReadingError {
         String seriesId;
-        seriesId = line[2];
-        log.debug(seriesId);
-        log.debug(StringUtils.join(Arrays.copyOfRange(line, 3, 9), ':'));
+        seriesId = line[0];
         Date d;
+        //log.debug(seriesId);
         try {
-            d = dateFormat.parse(StringUtils.join(Arrays.copyOfRange(line, 3, 9), ':'));
-            log.debug("date :" +d);
+            d = dateFormat.parse(line[0]);
+            //log.debug("date :" +d);
         } catch (ParseException e) {
             log.error("Can not parse a date", e);
             throw new FileReadingError(
@@ -238,7 +254,7 @@ public class ReefnetFileReader implements DataFileReader {
      */
     @Override
     public String getName() {
-        return "ReefNet File"; // NON-NLS
+        return "CTD File"; // NON-NLS
     }
 
     /**
@@ -248,7 +264,7 @@ public class ReefnetFileReader implements DataFileReader {
      */
     @Override
     public String getButtonText() {
-        return I18nSupport.translate("actions.openReefNetFile");
+        return I18nSupport.translate("actions.openCTDFile");
     }
 
     /**
@@ -277,7 +293,7 @@ public class ReefnetFileReader implements DataFileReader {
                          */
                         @Override
                         public boolean accept(File dir, String name) {
-                            return isReefnetFile(FileUtils.getFile(dir, name));
+                            return isCTDFile(FileUtils.getFile(dir, name));
                         }
                     }));
 }
